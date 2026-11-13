@@ -26,7 +26,7 @@ class PortalPack extends HurricanePacker {
     ok(result.faceCount==mesh.faceCount&&Arrays.equals(result.faceTextures,mesh.faceTextures),"Native roundtrip");
     save(s,7,id,Map.of(0,data),true);models[i++]=id++;
    }
-   d.setObjectModels(models);d.setObjectTypes(new int[]{10,10,10,10});
+   d.setObjectModels(models);d.setObjectTypes(null);
    d.setAnimationID(-1);
    var out=new ObjectSaver().save(d);defs.put(6282,out);
    save(s,2,6,defs,false);s.save();

@@ -43,16 +43,12 @@ edit(files[1],[
  ('if (wanted.get(24))','if (wanted.get(24) || wanted.get(25))')
 ])
 edit(files[2],[
+ ('else if (offsetModel.getSceneId() == sceneId)','else if (offsetModel.getSceneId() == sceneId && !AuthoredModelTextures.isSlayerPortal(offsetModel))'),
  ('private int uniBrightness;','private int uniBrightness;\n    private int uniSlayerPortalTime;'),
  ('uniBrightness = GL43C.glGetUniformLocation(glProgram, "brightness");','uniBrightness = GL43C.glGetUniformLocation(glProgram, "brightness");\n        uniSlayerPortalTime = GL43C.glGetUniformLocation(glProgram, "slayerPortalTime");'),
  ('GL43C.glUniform1f(uniBrightness, (float) textureProvider.getBrightness());','GL43C.glUniform1f(uniBrightness, (float) textureProvider.getBrightness());\n            GL43C.glUniform1f(uniSlayerPortalTime, Math.floorMod(System.nanoTime(), 48_000_000_000L) / 1_000_000_000f);')
 ])
-edit(files[3],[
- ('if (model.getSceneId() == sceneId)','''// Keep the complete portal on the oversized-model CPU sorting path.
-        if (AuthoredModelTextures.isSlayerPortal(model)) return;
-
-		if (model.getSceneId() == sceneId)''')
-])
+edit(files[3],[('final int triangleCount = Math.min(model.getFaceCount(), GpuPlugin.MAX_TRIANGLE);','final int triangleCount = AuthoredModelTextures.isSlayerPortal(model) ? model.getFaceCount() : Math.min(model.getFaceCount(), GpuPlugin.MAX_TRIANGLE);')])
 frag=(src/'ClientResources/net/runelite/client/plugins/gpu/frag.glsl').read_text()
 motion=frag.split('  } else if (fTextureId == 41004) {',1)[1].split('  } else if',1)[0]
 edit(files[4],[

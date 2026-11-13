@@ -68,6 +68,15 @@
              if (tags.get(tag)) next.set(i);
          }
  		int firstBoss = next.nextSetBit(16);
+@@ -294,7 +295,7 @@
+     // Colossus actor assets load in the background; only static walls gate the scene.
+     synchronized boolean isSceneReady()
+     {
+-        if (wanted.get(24)) return ready; // The teleporter scenery has no authored-colour substitute.
++        if (wanted.get(24) || wanted.get(25)) return ready; // The teleporter scenery has no authored-colour substitute.
+         int first = wanted.nextSetBit(0);
+         return first < 0 || first >= 16 || ready;
+     }
 --- a/osrs server/client kryptic/client/runelite-client/src/main/java/net/runelite/client/plugins/gpu/GpuPlugin.java
 +++ b/osrs server/client kryptic/client/runelite-client/src/main/java/net/runelite/client/plugins/gpu/GpuPlugin.java
 @@ -349,6 +349,7 @@
@@ -94,6 +103,15 @@
  			GL43C.glUniform1f(uniSmoothBanding, config.smoothBanding() ? 0f : 1f);
  			GL43C.glUniform1i(uniColorBlindMode, config.colorBlindMode().ordinal());
  			GL43C.glUniform1f(uniTextureLightMode, config.brightTextures() ? 1f : 0f);
+@@ -2991,7 +2994,7 @@
+ 			}
+ 		}
+ 		// Model may be in the scene buffer
+-		else if (offsetModel.getSceneId() == sceneId)
++		else if (offsetModel.getSceneId() == sceneId && !AuthoredModelTextures.isSlayerPortal(offsetModel))
+ 		{
+ 			assert model == renderable;
+ 
 --- a/osrs server/client kryptic/client/runelite-client/src/main/java/net/runelite/client/plugins/gpu/SceneUploader.java
 +++ b/osrs server/client kryptic/client/runelite-client/src/main/java/net/runelite/client/plugins/gpu/SceneUploader.java
 @@ -945,6 +945,9 @@
@@ -106,6 +124,16 @@
  		if (model.getSceneId() == sceneId)
  		{
  			return; // model has already been uploaded
+@@ -976,7 +979,8 @@
+ 		final boolean fire = OlmPresentation.isFire(model);
+ 		final AuthoredModelTextures.Entry authored = authoredModelTextures.find(model);
+         final BladeParticleMaterials.Entry particles = bladeParticleMaterials.find(model);
+-		final int triangleCount = Math.min(model.getFaceCount(), GpuPlugin.MAX_TRIANGLE);
++		final int triangleCount = AuthoredModelTextures.isSlayerPortal(model)
++            ? model.getFaceCount() : Math.min(model.getFaceCount(), GpuPlugin.MAX_TRIANGLE);
+ 
+ 		vertexBuffer.ensureCapacity(triangleCount * 12);
+ 		uvBuffer.ensureCapacity(triangleCount * 12);
 --- a/osrs server/client kryptic/client/runelite-client/src/main/resources/net/runelite/client/plugins/gpu/frag.glsl
 +++ b/osrs server/client kryptic/client/runelite-client/src/main/resources/net/runelite/client/plugins/gpu/frag.glsl
 @@ -37,7 +37,8 @@
