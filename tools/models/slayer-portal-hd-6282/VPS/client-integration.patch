@@ -1,0 +1,142 @@
+--- a/osrs server/client kryptic/client/runelite-client/src/main/java/net/runelite/client/plugins/gpu/AuthoredModelTextures.java
++++ b/osrs server/client kryptic/client/runelite-client/src/main/java/net/runelite/client/plugins/gpu/AuthoredModelTextures.java
+@@ -59,9 +59,13 @@
+ 	AuthoredModelTextures()
+ 	{
+ 		String[] names = {"head", "left-hand", "right-hand", "background", "founders-cape", "founder-rug"};
+-		String[] allNames = Arrays.copyOf(names, names.length + CrystalWallTextures.NAMES.length + 1);
++		String[] allNames = Arrays.copyOf(names, names.length + CrystalWallTextures.NAMES.length + 4);
+ 		for (int i=0;i<CrystalWallTextures.NAMES.length;i++) allNames[names.length+i] = "wall-" + CrystalWallTextures.NAMES[i];
+-		allNames[allNames.length - 1] = "wall-teleporter-nest";
++		allNames[allNames.length - 5] = "wall-teleporter-nest";
++        allNames[allNames.length - 4] = "wall-slayer-portal";
++        allNames[allNames.length - 3] = "slayer-portal-right";
++        allNames[allNames.length - 2] = "slayer-portal-arch";
++        allNames[allNames.length - 1] = "slayer-portal-rift";
+ 		names = allNames;
+ 		entries = new Entry[names.length];
+ 		try
+@@ -78,6 +82,12 @@
+ 		if (in == null) throw new IOException("Missing authored texture resource: " + name);
+ 		return in;
+ 	}
++
++    static boolean isSlayerPortal(Model model)
++    {
++        short[] textures = model.getFaceTextures();
++        return model.getFaceCount() == 15416 && textures != null && textures[0] == (short)49012;
++    }
+ 
+ 	Entry find(Model model)
+ 	{
+@@ -425,7 +435,7 @@
+ 		{
+ 			if (in.readInt() != 0x55564f31) { throw new IOException("Invalid UV format"); }
+ 			count = in.readInt(); layer = in.readInt(); in.readInt();
+-			if (count < 1 || count > 6144 || layer < 0 || layer == 5 || layer > 30) { throw new IOException("Invalid UV header"); }
++			if (count < 1 || count > 6144 || layer < 0 || layer == 5 || layer > 31) { throw new IOException("Invalid UV header"); }
+ 			topology = new int[count * 3]; textures = new int[count]; weights = new double[count * 9];
+ 			directUvs = layer >= 6 ? new float[count * 6] : null;
+ 			for (int face = 0; face < count; face++)
+@@ -494,6 +504,7 @@
+                     code = marker == -16531 ? 41003 : marker == -16532 ? 41002 : 41001;
+                 }
+                 if (layer == 30) code = textures[0] & 0xffff;
++                if (layer == 31) code = textures[0] == (short)49015 ? 41007 : 41006;
+                 for (int k=0;k<3;k++) out.put(-code, directUvs[offset+k*2], directUvs[offset+k*2+1], 0);
+ 				return;
+ 			}
+--- a/osrs server/client kryptic/client/runelite-client/src/main/java/net/runelite/client/plugins/gpu/CrystalWallTextures.java
++++ b/osrs server/client kryptic/client/runelite-client/src/main/java/net/runelite/client/plugins/gpu/CrystalWallTextures.java
+@@ -31,9 +31,9 @@
+ {
+ 	static final String[] NAMES = {"boss-wall-left", "boss-wall-right", "straight-a", "straight-b",
+ 		"straight-c", "straight-d", "straight-short", "corner-inner", "corner-outer", "diagonal-a",
+-		"diagonal-b", "north-corner-left", "north-corner-right", "entrance-arch", "entrance-left", "entrance-right", "elemental-fire", "elemental-earth", "elemental-water", "elemental-air", "collector-basic", "collector-adorned", "collector-royal", "ascension-altar", "teleporter-scenery"};
++		"diagonal-b", "north-corner-left", "north-corner-right", "entrance-arch", "entrance-left", "entrance-right", "elemental-fire", "elemental-earth", "elemental-water", "elemental-air", "collector-basic", "collector-adorned", "collector-royal", "ascension-altar", "teleporter-scenery", "slayer-portal"};
+ 	static final int FIRST_TEXTURE = 40007, ALTAR_TEXTURE = 41001;
+-    static final int SCENERY_TEXTURE = 41004, NEST_TEXTURE = 41005, LAST_TEXTURE = NEST_TEXTURE;
++    static final int SCENERY_TEXTURE = 41004, NEST_TEXTURE = 41005, SLAYER_PORTAL_TEXTURE = 41006, LAST_TEXTURE = SLAYER_PORTAL_TEXTURE;
+ 	static final int SIZE = 4096, LEVELS = 13, UNIT = 2;
+ 	static final long SHEET_BYTES = 22369648L;
+ 	private static final int CHUNK_BYTES = 1024 * 1024;
+@@ -88,6 +88,7 @@
+             int tag = FIRST_TEXTURE + i;
+             if (i == 23) tag = ALTAR_TEXTURE;
+             else if (i == 24) tag = SCENERY_TEXTURE;
++            else if (i == 25) tag = SLAYER_PORTAL_TEXTURE;
+             if (tags.get(tag)) next.set(i);
+         }
+ 		int firstBoss = next.nextSetBit(16);
+--- a/osrs server/client kryptic/client/runelite-client/src/main/java/net/runelite/client/plugins/gpu/GpuPlugin.java
++++ b/osrs server/client kryptic/client/runelite-client/src/main/java/net/runelite/client/plugins/gpu/GpuPlugin.java
+@@ -349,6 +349,7 @@
+ 	private int uniExpandedMapLoadingChunks;
+ 	private int uniProjectionMatrix;
+ 	private int uniBrightness;
++    private int uniSlayerPortalTime;
+ 	private int uniObjectDarkness;
+ 	private int uniRaidFloorLighting;
+ 	private final RaidFloorMask raidFloorMask = new RaidFloorMask();
+@@ -856,6 +857,7 @@
+ 	{
+ 		uniProjectionMatrix = GL43C.glGetUniformLocation(glProgram, "projectionMatrix");
+ 		uniBrightness = GL43C.glGetUniformLocation(glProgram, "brightness");
++        uniSlayerPortalTime = GL43C.glGetUniformLocation(glProgram, "slayerPortalTime");
+ 		uniObjectDarkness = GL43C.glGetUniformLocation(glProgram, "objectDarkness");
+ 		uniRaidFloorLighting = GL43C.glGetUniformLocation(glProgram, "raidFloorLighting");
+ 		uniSmoothBanding = GL43C.glGetUniformLocation(glProgram, "smoothBanding");
+@@ -1892,6 +1894,7 @@
+ 
+ 			// Brightness happens to also be stored in the texture provider, so we use that
+ 			GL43C.glUniform1f(uniBrightness, (float) textureProvider.getBrightness());
++            GL43C.glUniform1f(uniSlayerPortalTime, Math.floorMod(System.nanoTime(), 48_000_000_000L) / 1_000_000_000f);
+ 			GL43C.glUniform1f(uniSmoothBanding, config.smoothBanding() ? 0f : 1f);
+ 			GL43C.glUniform1i(uniColorBlindMode, config.colorBlindMode().ordinal());
+ 			GL43C.glUniform1f(uniTextureLightMode, config.brightTextures() ? 1f : 0f);
+--- a/osrs server/client kryptic/client/runelite-client/src/main/java/net/runelite/client/plugins/gpu/SceneUploader.java
++++ b/osrs server/client kryptic/client/runelite-client/src/main/java/net/runelite/client/plugins/gpu/SceneUploader.java
+@@ -945,6 +945,9 @@
+ 			model = model.getUnskewedModel();
+ 		}
+ 
++		// Keep the complete portal on the oversized-model CPU sorting path.
++        if (AuthoredModelTextures.isSlayerPortal(model)) return;
++
+ 		if (model.getSceneId() == sceneId)
+ 		{
+ 			return; // model has already been uploaded
+--- a/osrs server/client kryptic/client/runelite-client/src/main/resources/net/runelite/client/plugins/gpu/frag.glsl
++++ b/osrs server/client kryptic/client/runelite-client/src/main/resources/net/runelite/client/plugins/gpu/frag.glsl
+@@ -37,7 +37,8 @@
+ uniform sampler2DArray authoredRug;
+ uniform int authoredTextureReady[5];
+ uniform sampler2DArray crystalWallTextures;
+-uniform int crystalWallLayers[25];
++uniform int crystalWallLayers[26];
++uniform float slayerPortalTime;
+ uniform int crystalWallReady;
+ // Match every new Meshy wall to64040's sampled rock/crystal palette. Source4K atlases and UVs stay intact.
+ const vec3 crystalWallRockGain[16] = vec3[16](
+@@ -224,6 +225,21 @@
+     c = crystalWallReady == 0 || layer < 0 ? vec4(fColor.rgb, 1.0) : texture(crystalWallTextures, vec3(fUv, float(layer)));
+     // These glTF materials are opaque. Compressed albedo alpha can round below 1.
+     c.a = fAlpha;
++  } else if (fTextureId == 41006) {
++    int layer = crystalWallLayers[25];
++    c = layer < 0 ? vec4(fColor.rgb, 1.0) : texture(crystalWallTextures, vec3(fUv, float(layer)));
++    c.a = fAlpha;
++  } else if (fTextureId == 41007) {
++    vec2 p = (fUv - vec2(0.5,0.47)) * vec2(2.0,2.05);
++    float r = length(p); float a = atan(p.y,p.x);
++    float phase = slayerPortalTime * 6.2831853 / 48.0;
++    float curl = a * 3.0 + log(r + 0.12) * 5.5;
++    float body = pow(0.5 + 0.5*sin(curl - phase*3.0), 6.0);
++    float mist = pow(0.5 + 0.5*sin(a*4.0 - r*11.0 + phase*4.0), 10.0);
++    float mask = smoothstep(0.15,0.44,r)*(1.0-smoothstep(0.72,1.05,r));
++    vec3 ink = vec3(0.006,0.002,0.004);
++    vec3 blood = vec3(0.27,0.008,0.019)*body + vec3(0.09,0.002,0.006)*mist;
++    c = vec4(ink + blood*mask,1.0);
+   } else if (fTextureId >= 40027 && fTextureId <= 40029) {
+     int layer = crystalWallLayers[fTextureId - 40007];
+     c = crystalWallReady != 0 && layer >= 0 ? texture(crystalWallTextures, vec3(fUv, float(layer))) : vec4(fColor.rgb, 1.0);
