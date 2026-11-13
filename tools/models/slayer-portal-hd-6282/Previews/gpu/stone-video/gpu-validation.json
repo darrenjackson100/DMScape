@@ -1,0 +1,10 @@
+{
+  "cacheWritten": false,
+  "renderer": "AMD Radeon RX 6700 XT",
+  "uploader": "production SceneUploader",
+  "shaders": "production GPU vert/geom/frag",
+  "nativeFrames": 360,
+  "floor": "preview only",
+  "loggedInTest": false,
+  "model": "stone"
+}

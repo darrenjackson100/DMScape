@@ -1,0 +1,22 @@
+[
+  {
+    "part": "wall-left",
+    "vertices": 4032,
+    "triangles": 5880
+  },
+  {
+    "part": "wall-right",
+    "vertices": 4032,
+    "triangles": 5880
+  },
+  {
+    "part": "arch-base",
+    "vertices": 2472,
+    "triangles": 3642
+  },
+  {
+    "part": "rift",
+    "vertices": 9,
+    "triangles": 14
+  }
+]
